@@ -1,13 +1,19 @@
 import DiscordJs, { Intents, TextChannel } from "discord.js";
 import dotenv from "dotenv";
 import express from "express";
+import path from "path";
 import api from "./service/api";
 const config = require("./config.json");
 const app = express();
 dotenv.config();
 
 app.use(express.json());
-app.listen(process.env.PORT);
+// Servir arquivos estáticos da pasta public (para Termos e Privacidade)
+app.use(express.static(path.join(__dirname, "../public")));
+
+app.listen(process.env.PORT || 3000, () => {
+    console.log(`Server running on port ${process.env.PORT || 3000}`);
+});
 
 const client = new DiscordJs.Client({
   intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES],
@@ -32,19 +38,25 @@ client.on("ready", () => {
 
 client.on("messageCreate", (message) => {
   if (message.author.bot) return;
+  console.log(`[DEBUG] Mensagem recebida no canal ${message.channelId}: ${message.content}`);
+
   if (!message.content.toLowerCase().startsWith(config.prefix)) return;
 
-  const args = message.content.trim().slice(config.prefix).split(/ +/g);
+  const args = message.content.trim().slice(config.prefix.length).split(/ +/g);
   const command = args.shift();
   const parmsCom = args.join(" ");
 
-  if (command === config.prefix +"chamado") {
+  if (command === "chamado") {
+    console.log(`[DEBUG] Comando identificado: chamado. Params: ${parmsCom}`);
     const req = { chamadoId: parmsCom };
     api.post(`postDadosChamado`, req).then((response) => {
       const { ClienteNome, Prioridade, Mensagem } = response.data;
       message.reply({
         content: `**Dados do chamado ${parmsCom}** \n**Cliente:** ${ClienteNome} \n**Prioridade:** ${Prioridade} \n**Mensagem:** ${Mensagem}`,
       });
+    }).catch((error) => {
+      console.error("[ERRO] Falha ao consultar API:", error.message);
+      message.reply(`Erro ao consultar o chamado: ${error.message || "Erro desconhecido"}`);
     });
   }
 });
